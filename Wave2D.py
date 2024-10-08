@@ -175,7 +175,7 @@ class Wave2D_Neumann(Wave2D):
     def ue(self, mx, my, x, y, t):
         return sp.cos(mx*sp.pi*x)*sp.cos(my*sp.pi*y)*sp.cos(self.w*t)
 
-    def apply_bcs(self):
+    def apply_bcs(self, u=None):
         pass
 
 def test_convergence_wave2d():
@@ -195,3 +195,19 @@ def test_exact_wave2d():
     hH, errorH = solN(N=10, Nt=10, cfl = 1/np.sqrt(2))
     assert abs(errorD[-1])<1e-12
     assert abs(errorH[-1])<1e-12
+    
+if __name__ == "__main__":
+    sol = Wave2D()
+    r, E, h = sol.convergence_rates(mx=2, my=3)
+    abs(r[-1]-2) < 1e-2
+
+    solN = Wave2D_Neumann()
+    r, E, h = solN.convergence_rates(mx=2, my=3)
+    abs(r[-1]-2) < 0.05
+
+    solD = Wave2D()
+    solN = Wave2D_Neumann()
+    hD, errorD = solD(N=10, Nt=10, cfl = 1/np.sqrt(2))
+    hH, errorH = solN(N=10, Nt=10, cfl = 1/np.sqrt(2))
+    abs(errorD[-1])<1e-12
+    abs(errorH[-1])<1e-12
