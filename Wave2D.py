@@ -10,31 +10,47 @@ class Wave2D:
 
     def create_mesh(self, N, sparse=False):
         """Create 2D mesh and store in self.xij and self.yij"""
-        self.N=N
-        xi = np.linspace(0, 1, N+1)  # x coordinates
-        yj = np.linspace(0, 1, N+1)  # y coordinates
-        self.xij, self.yij = np.meshgrid(xi, yj, indexing='ij')
-        return self.xij, self.yij
+        # self.xji, self.yij = ...
+        self.L = 1
+        self.N = N
+        self.h = self.L/self.N
+        x = self.x = np.linspace(0, self.L, self.N+1)
+        y = self.y = np.linspace(0, self.L, self.N+1) 
+        self.xij, self.yij = np.meshgrid(x,y, indexing = "ij")
+        return self.h
 
-    def D2(self, N):
-        D = sparse.diags([1, -2, 1], [-1, 0, 1], (N+1, N+1), 'lil')
-        D[0, :4] = 2, -5, 4, -1
+    def D2(self):
+        """Return second order differentiation matrix"""
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N+1, self.N+1), 'lil')
+        D[0,:4] = 2, -5, 4, -1
         D[-1, -4:] = -1, 4, -5, 2
         return D
 
     @property
     def w(self):
         """Return the dispersion coefficient"""
-        return np.pi * np.sqrt(self.mx**2+self.my**2)
+        kx = self.mx * sp.pi
+        ky = self.my * sp.pi
+        w = self.c * sp.sqrt(kx**2 + ky**2)
+        return w
 
-    def ue(self, mx, my):
+    def ue(self, mx, my, x, y, t):
         """Return the exact standing wave"""
-        self.mx=mx
-        self.my=my
         return sp.sin(mx*sp.pi*x)*sp.sin(my*sp.pi*y)*sp.cos(self.w*t)
 
     def initialize(self, N, mx, my):
-        self.N, self.mx, self.my = N, mx, my
+        r"""Initialize the solution at $U^{n}$ and $U^{n-1}$
+
+        Parameters
+        ----------
+        N : int
+            The number of uniform intervals in each direction
+        mx, my : int
+            Parameters for the standing wave
+        """
+        self.N = N 
+        self.mx = mx
+        self.my = my
 
     @property
     def dt(self):
@@ -86,10 +102,10 @@ class Wave2D:
         If store_data > 0, then return a dictionary with key, value = timestep, solution
         If store_data == -1, then return the two-tuple (h, l2-error)
         """
-        self.Nt=Nt
-        self.N=N
+        self.N = N 
+        self.Nt = Nt
+        self.cfl = cfl 
         self.c = c
-        self.cfl = cfl
         self.mx = mx 
         self.my = my 
         self.h = self.create_mesh(self.N)
@@ -97,20 +113,21 @@ class Wave2D:
         D = (1/self.h**2)*self.D2()
         Unm1[:] = sp.lambdify((x,y), self.ue(mx, my, x, y, 0))(self.xij, self.yij)
         Un[:] = sp.lambdify((x,y), self.ue(mx, my, x, y, self.dt))(self.xij, self.yij)
+        
         plotdata = {0: Unm1.copy()}
         
-        for n in range(1, Nt+1):
+        for n in range(1,self.Nt+1):
             Unp1[:] = 2*Un - Unm1 + (self.c*self.dt)**2*(D @ Un + Un @ D.T)
             self.apply_bcs(Unp1)
-            Unm1[:]=Un
-            Un[:]=Unp1
-            if n % store_data == 0 and store_data > 0:
-                plotdata[n] = Unm1.copy() # Unm1 is now swapped to Un
+            Unm1[:] = Un
+            Un[:] = Unp1
+            if n % store_data == 0:
+                plotdata[n] = Unm1.copy()
         if store_data == -1:
-            l2_err = self.l2_error(Un,(self.Nt+1)*self.dt)
-            return self.h, l2_err    
-        elif store_data>0:   
+            return (self.h, [self.l2_error(Un, (self.Nt+1)*self.dt)])
+        elif store_data > 0: 
             return self.xij, self.yij, plotdata
+
             
 
 
@@ -149,15 +166,13 @@ class Wave2D:
 
 class Wave2D_Neumann(Wave2D):
 
-    def D2(self, N):
-        D = sparse.diags([1, -2, 1], [-1, 0, 1], (N+1, N+1), 'lil')
-        D[0, :3] = -2, 2, 0
-        D[-1, -3:] = 0, 2, -2
+    def D2(self):
+        D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N+1, self.N+1), 'lil')
+        D[0,:4] = -2, 2, 0, 0 
+        D[-1, -4:] = 0, 0, 2, -2
         return D
 
-    def ue(self, mx, my):
-        self.mx=mx
-        self.my=my
+    def ue(self, mx, my, x, y, t):
         return sp.cos(mx*sp.pi*x)*sp.cos(my*sp.pi*y)*sp.cos(self.w*t)
 
     def apply_bcs(self):
