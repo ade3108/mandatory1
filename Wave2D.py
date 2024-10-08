@@ -34,23 +34,11 @@ class Wave2D:
         return sp.sin(mx*sp.pi*x)*sp.sin(my*sp.pi*y)*sp.cos(self.w*t)
 
     def initialize(self, N, mx, my):
-        xij, yij = self.create_mesh(N, N)
-        self.mx, self.my = mx, my
-        U_n = np.zeros((N+1))
-        h = 1 / N  # Spatial step size
-        self.h=h
-        D = self.D2(N)/self.h**2
-        self.D=D
-        U_nm1 = np.sin(mx * np.pi * self.xij) * np.sin(my * np.pi * self.yij)
-        U_n[:] = U_nm1[:] + 0.5*(self.c*self.dt)**2*(D @ U_nm1 + U_nm1 @ D.T)
-        self.U_np1 = np.zeros_like(self.U_n)
-        return self.U_n, self.U_nm1
+        self.N, self.mx, self.my = N, mx, my
 
     @property
     def dt(self):
         """Return the time step"""
-        h = 1 / self.N  # Spatial step size
-        self.h=h
         return self.cfl * self.h / self.c
 
     def l2_error(self, u, t0):
@@ -63,20 +51,15 @@ class Wave2D:
         t0 : number
             The time of the comparison
         """
-        u_exact = np.sin(self.mx * np.pi * self.xij) * np.sin(self.my * np.pi * self.yij) * np.cos(self.w * t0)
-        e2_sum= np.sum((u-u_exact)**2)
-        return np.sqrt(self.h**2*e2_sum)
+        ue_f = sp.lambdify((x,y), self.ue(self.mx, self.my, x, y, t0))(self.xij, self.yij)
+        uerr = ue_f - u 
+        return np.sqrt(self.h**2*np.sum(uerr**2))
 
-    def apply_bcs(self):
-        self.U_n[0, :] = 0
-        self.U_n[-1, :] = 0
-        self.U_n[:, 0] = 0
-        self.U_n[:, -1] = 0
-
-        self.U_nm1[0, :] = 0
-        self.U_nm1[-1, :] = 0
-        self.U_nm1[:, 0] = 0
-        self.U_nm1[:, -1] = 0
+    def apply_bcs(self, u=None):
+        u[0] = 0 
+        u[-1] = 0 
+        u[:,0] = 0 
+        u[:,-1] = 0
 
     def __call__(self, N, Nt, cfl=0.5, c=1.0, mx=3, my=3, store_data=-1):
         """Solve the wave equation
@@ -103,25 +86,31 @@ class Wave2D:
         If store_data > 0, then return a dictionary with key, value = timestep, solution
         If store_data == -1, then return the two-tuple (h, l2-error)
         """
+        self.Nt=Nt
+        self.N=N
         self.c = c
         self.cfl = cfl
-        self.initialize(N, mx, my)
-        dt = self.dt
-        plotdata = {0: self.U_nm1.copy()}
+        self.mx = mx 
+        self.my = my 
+        self.h = self.create_mesh(self.N)
+        Unp1, Un, Unm1 = np.zeros((3, self.N+1, self.N+1))
+        D = (1/self.h**2)*self.D2()
+        Unm1[:] = sp.lambdify((x,y), self.ue(mx, my, x, y, 0))(self.xij, self.yij)
+        Un[:] = sp.lambdify((x,y), self.ue(mx, my, x, y, self.dt))(self.xij, self.yij)
+        plotdata = {0: Unm1.copy()}
         
-        if store_data == 1:
-            plotdata[1] = self.U_n.copy()
-        for n in range(1, Nt):
-            self.U_np1[:] = 2*self.U_n - self.U_nm1 + (c*dt)**2*(self.D @ self.U_n + self.U_n @ self.D.T)
-            self.apply_bcs()
-            self.U_nm1[:]=self.U_n
-            self.U_n[:]=self.U_np1
+        for n in range(1, Nt+1):
+            Unp1[:] = 2*Un - Unm1 + (self.c*self.dt)**2*(D @ Un + Un @ D.T)
+            self.apply_bcs(Unp1)
+            Unm1[:]=Un
+            Un[:]=Unp1
             if n % store_data == 0 and store_data > 0:
-                plotdata[n] = self.U_n.copy() # Unm1 is now swapped to Un
+                plotdata[n] = Unm1.copy() # Unm1 is now swapped to Un
         if store_data == -1:
-            l2_err = self.l2_error(self.U_n, Nt * dt)
-            return h, l2_err       
-        return xij, yij, plotdata
+            l2_err = self.l2_error(Un,(self.Nt+1)*self.dt)
+            return self.h, l2_err    
+        elif store_data>0:   
+            return self.xij, self.yij, plotdata
             
 
 
@@ -172,11 +161,7 @@ class Wave2D_Neumann(Wave2D):
         return sp.cos(mx*sp.pi*x)*sp.cos(my*sp.pi*y)*sp.cos(self.w*t)
 
     def apply_bcs(self):
-        self.U_n[0, :] = self.U_n[1, :]      # At x = 0
-        self.U_n[-1, :] = self.U_n[-2, :]    # At x = N
-        # Neumann condition on bottom and top boundaries (y = 0 and y = N)
-        self.U_n[:, 0] = self.U_n[:, 1]      # At y = 0
-        self.U_n[:, -1] = self.U_n[:, -2]    # At y = N
+        pass
 
 def test_convergence_wave2d():
     sol = Wave2D()
@@ -189,4 +174,9 @@ def test_convergence_wave2d_neumann():
     assert abs(r[-1]-2) < 0.05
 
 def test_exact_wave2d():
-    raise NotImplementedError
+    solD = Wave2D()
+    solN = Wave2D_Neumann()
+    hD, errorD = solD(N=10, Nt=10, cfl = 1/np.sqrt(2))
+    hH, errorH = solN(N=10, Nt=10, cfl = 1/np.sqrt(2))
+    assert abs(errorD[-1])<1e-12
+    assert abs(errorH[-1])<1e-12
