@@ -37,8 +37,10 @@ class Wave2D:
         self.create_mesh(N)
         self.mx, self.my = mx, my
         U_n = np.zeros((N+1))
+        D = self.D2(N)/self.h**2
+        self.D=D
         U_nm1 = np.sin(mx * np.pi * self.xij) * np.sin(my * np.pi * self.yij)
-        U_n[:] = U_nm1[:] + 0.5*(self.c*self.dt)**2*(self.D @ U_nm1 + U_nm1 @ self.D.T)
+        U_n[:] = U_nm1[:] + 0.5*(self.c*self.dt)**2*(D @ U_nm1 + U_nm1 @ D.T)
         self.U_np1 = np.zeros_like(self.U_n)
         return self.U_n, self.U_nm1
 
@@ -106,13 +108,12 @@ class Wave2D:
         h=1/N
         self.h=h
         xij, yij = self.create_mesh(N, N)
-        D=self.D2(N)/h**2
         plotdata = {0: self.U_nm1.copy()}
         
         if store_data == 1:
             plotdata[1] = self.U_n.copy()
         for n in range(1, Nt):
-            self.U_np1[:] = 2*self.U_n - self.U_nm1 + (c*dt)**2*(D @ self.U_n + self.U_n @ D.T)
+            self.U_np1[:] = 2*self.U_n - self.U_nm1 + (c*dt)**2*(self.D @ self.U_n + self.U_n @ self.D.T)
             self.apply_bcs()
             self.U_nm1[:]=self.U_n
             self.U_n[:]=self.U_np1
