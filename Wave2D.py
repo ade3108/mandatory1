@@ -34,9 +34,11 @@ class Wave2D:
         return sp.sin(mx*sp.pi*x)*sp.sin(my*sp.pi*y)*sp.cos(self.w*t)
 
     def initialize(self, N, mx, my):
-        self.create_mesh(N)
+        xij, yij = self.create_mesh(N, N)
         self.mx, self.my = mx, my
         U_n = np.zeros((N+1))
+        h = 1 / N  # Spatial step size
+        self.h=h
         D = self.D2(N)/self.h**2
         self.D=D
         U_nm1 = np.sin(mx * np.pi * self.xij) * np.sin(my * np.pi * self.yij)
@@ -49,7 +51,7 @@ class Wave2D:
         """Return the time step"""
         h = 1 / self.N  # Spatial step size
         self.h=h
-        return self.cfl * h / self.c
+        return self.cfl * self.h / self.c
 
     def l2_error(self, u, t0):
         """Return l2-error norm
@@ -105,9 +107,6 @@ class Wave2D:
         self.cfl = cfl
         self.initialize(N, mx, my)
         dt = self.dt
-        h=1/N
-        self.h=h
-        xij, yij = self.create_mesh(N, N)
         plotdata = {0: self.U_nm1.copy()}
         
         if store_data == 1:
