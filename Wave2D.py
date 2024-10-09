@@ -12,11 +12,10 @@ class Wave2D:
     def create_mesh(self, N, sparse=False):
         """Create 2D mesh and store in self.xij and self.yij"""
         # self.xji, self.yij = ...
-        self.L = 1
         self.N = N
-        self.h = self.L/self.N
-        x = self.x = np.linspace(0, self.L, self.N+1)
-        y = self.y = np.linspace(0, self.L, self.N+1) 
+        self.h = 1/self.N
+        x = np.linspace(0, 1, self.N+1)
+        y = np.linspace(0, 1, self.N+1) 
         self.xij, self.yij = np.meshgrid(x,y, indexing = "ij")
         return self.h
 
@@ -30,10 +29,7 @@ class Wave2D:
     @property
     def w(self):
         """Return the dispersion coefficient"""
-        kx = self.mx * sp.pi
-        ky = self.my * sp.pi
-        w = self.c * sp.sqrt(kx**2 + ky**2)
-        return w
+        return self.c * sp.sqrt((self.mx * sp.pi)**2 + (self.my * sp.pi)**2)
 
     def ue(self, mx, my, x, y, t):
         """Return the exact standing wave"""
@@ -103,13 +99,13 @@ class Wave2D:
         If store_data > 0, then return a dictionary with key, value = timestep, solution
         If store_data == -1, then return the two-tuple (h, l2-error)
         """
-        self.N = N 
+        self.N = N
         self.Nt = Nt
         self.cfl = cfl 
         self.c = c
         self.mx = mx 
-        self.my = my 
-        self.h = self.create_mesh(self.N)
+        self.my = my
+        self.h= self.create_mesh(self.N)
         Unp1, Un, Unm1 = np.zeros((3, self.N+1, self.N+1))
         D = (1/self.h**2)*self.D2()
         Unm1[:] = sp.lambdify((x,y), self.ue(mx, my, x, y, 0))(self.xij, self.yij)
@@ -128,9 +124,6 @@ class Wave2D:
             return (self.h, [self.l2_error(Un, (self.Nt+1)*self.dt)])
         elif store_data > 0: 
             return self.xij, self.yij, plotdata
-
-            
-
 
     def convergence_rates(self, m=4, cfl=0.1, Nt=10, mx=3, my=3):
         """Compute convergence rates for a range of discretizations
