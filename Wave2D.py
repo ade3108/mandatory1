@@ -197,7 +197,7 @@ def test_exact_wave2d():
     assert abs(errorD[-1])<1e-12
     assert abs(errorH[-1])<1e-12
     
-def animationN():
+def Animation():
     solN = Wave2D_Neumann()
     xij, yij, data = solN(N=40, Nt=171, cfl = 1/np.sqrt(2), mx=2, my =2, store_data = 5)
     fig, ax = plt.subplots(subplot_kw={"projection":"3d"})
@@ -206,9 +206,9 @@ def animationN():
         frame = ax.plot_wireframe(xij, yij, val, rstride =2, cstride = 2)
         frames.append([frame])
     ani = animation.ArtistAnimation(fig, frames, interval=400, blit=True, repeat_delay=1000)
-    ani.save('neumannwave.gif', writer='pillow', fps = 5)
+    ani.save('./report/neumannwave.gif', writer='pillow', fps = 5)
     
 if __name__ == "__main__":
-    animationN()
+    Animation()
     
     
