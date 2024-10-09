@@ -4,8 +4,6 @@ import scipy.sparse as sparse
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib.animation as animation
-from IPython.display import HTML
-from IPython.display import display
 
 x, y, t = sp.symbols('x,y,t')
 
@@ -209,7 +207,6 @@ def animationN():
         frames.append([frame])
     ani = animation.ArtistAnimation(fig, frames, interval=400, blit=True, repeat_delay=1000)
     ani.save('neumannwave.gif', writer='pillow', fps = 5)
-    display(HTML(ani.to_jshtml()))
     
 if __name__ == "__main__":
     animationN()
